@@ -1,15 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, User, Package, ChevronRight, Search, Plus, Check, X } from 'lucide-react';
-import { authAPI, customersAPI, subscriptionsAPI } from './services/api';
+import { authAPI, customersAPI, subscriptionsAPI, subscriptionTypesAPI } from './services/api';
 
-const SUBSCRIPTION_TYPES = [
-  { id: 1, name: '6-Visit Haircut Package', visits: 6 },
-  { id: 2, name: '10-Visit Haircut Package', visits: 10 },
-  { id: 3, name: '6-Visit Manicure Package', visits: 6 },
-  { id: 4, name: '10-Visit Manicure Package', visits: 10 },
-  { id: 5, name: '6-Visit Massage Package', visits: 6 },
-  { id: 6, name: '10-Visit Massage Package', visits: 10 }
-];
 
 function AddCustomerModal({ onClose, onSubmit }) {
   const [formData, setFormData] = useState({ name: '', email: '', phone: '' });
@@ -96,8 +88,144 @@ function AddCustomerModal({ onClose, onSubmit }) {
     </div>
   );
 }
+function ManageSubscriptionTypesModal({ onClose, subscriptionTypes, onAdd, onDelete }) {
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [formData, setFormData] = useState({ name: '', visits: '' });
+  const [loading, setLoading] = useState(false);
 
-function AddSubscriptionModal({ onClose, onSubmit }) {
+  const handleSubmit = async () => {
+    if (!formData.name || !formData.visits) {
+      alert('Please fill in all fields');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await onAdd(formData);
+      setFormData({ name: '', visits: '' });
+      setShowAddForm(false);
+    } catch (error) {
+      alert('Error adding subscription type: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (typeId) => {
+    if (!window.confirm('Are you sure you want to delete this subscription type?')) {
+      return;
+    }
+
+    try {
+      await onDelete(typeId);
+    } catch (error) {
+      alert('Error deleting subscription type: ' + error.message);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+      <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-2xl my-8">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold text-gray-800">Manage Subscription Types</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+
+        {!showAddForm ? (
+          <button
+            onClick={() => setShowAddForm(true)}
+            className="w-full mb-4 flex items-center justify-center gap-2 py-3 px-4 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium"
+          >
+            <Plus className="w-5 h-5" />
+            Add New Subscription Type
+          </button>
+        ) : (
+          <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+            <h3 className="font-semibold mb-4">Add New Subscription Type</h3>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Package Name</label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="e.g., 10-Visit Spa Package"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Number of Visits</label>
+                <input
+                  type="number"
+                  value={formData.visits}
+                  onChange={(e) => setFormData({ ...formData, visits: e.target.value })}
+                  placeholder="e.g., 10"
+                  min="1"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    setShowAddForm(false);
+                    setFormData({ name: '', visits: '' });
+                  }}
+                  className="flex-1 py-2 px-4 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                  disabled={loading}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSubmit}
+                  disabled={loading}
+                  className="flex-1 py-2 px-4 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-300"
+                >
+                  {loading ? 'Adding...' : 'Add Type'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="max-h-96 overflow-y-auto">
+          <h3 className="font-semibold mb-3">Existing Subscription Types</h3>
+          {subscriptionTypes.length === 0 ? (
+            <p className="text-gray-500 text-center py-8">No subscription types yet</p>
+          ) : (
+            <div className="space-y-2">
+              {subscriptionTypes.map((type) => (
+                <div key={type.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div>
+                    <p className="font-medium text-gray-800">{type.name}</p>
+                    <p className="text-sm text-gray-600">{type.visits} visits included</p>
+                  </div>
+                  <button
+                    onClick={() => handleDelete(type.id)}
+                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-6 pt-4 border-t">
+          <button
+            onClick={onClose}
+            className="w-full py-2 px-4 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+function AddSubscriptionModal({ onClose, onSubmit, subscriptionTypes }) {
   const [selectedType, setSelectedType] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -125,28 +253,32 @@ function AddSubscriptionModal({ onClose, onSubmit }) {
         </div>
 
         <div className="max-h-96 overflow-y-auto pr-2">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            {SUBSCRIPTION_TYPES.map((type) => (
-              <button
-                key={type.id}
-                type="button"
-                onClick={() => setSelectedType(type)}
-                className={`p-4 rounded-lg border-2 text-left transition-all ${
-                  selectedType?.id === type.id
-                    ? 'border-purple-600 bg-purple-50'
-                    : 'border-gray-200 hover:border-purple-300'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-semibold text-gray-800">{type.name}</h3>
-                  {selectedType?.id === type.id && (
-                    <Check className="w-5 h-5 text-purple-600" />
-                  )}
-                </div>
-                <p className="text-sm text-gray-600">{type.visits} visits included</p>
-              </button>
-            ))}
-          </div>
+          {subscriptionTypes.length === 0 ? (
+            <p className="text-gray-500 text-center py-8">No subscription types available. Ask owner to add some.</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              {subscriptionTypes.map((type) => (
+                <button
+                  key={type.id}
+                  type="button"
+                  onClick={() => setSelectedType(type)}
+                  className={`p-4 rounded-lg border-2 text-left transition-all ${
+                    selectedType?.id === type.id
+                      ? 'border-purple-600 bg-purple-50'
+                      : 'border-gray-200 hover:border-purple-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-semibold text-gray-800">{type.name}</h3>
+                    {selectedType?.id === type.id && (
+                      <Check className="w-5 h-5 text-purple-600" />
+                    )}
+                  </div>
+                  <p className="text-sm text-gray-600">{type.visits} visits included</p>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="flex gap-3 pt-4 border-t border-gray-200 mt-4">
@@ -161,9 +293,9 @@ function AddSubscriptionModal({ onClose, onSubmit }) {
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={!selectedType || loading}
+            disabled={!selectedType || loading || subscriptionTypes.length === 0}
             className={`flex-1 px-4 py-2 rounded-lg transition-colors ${
-              selectedType && !loading
+              selectedType && !loading && subscriptionTypes.length > 0
                 ? 'bg-purple-600 text-white hover:bg-purple-700'
                 : 'bg-gray-100 text-gray-400 cursor-not-allowed'
             }`}
@@ -438,6 +570,9 @@ function CustomerPortal({ customer, onLogout, subscriptions, setSubscriptions })
   );
 }
 
+// ===================================================================
+// START: MODIFIED OWNER PORTAL
+// ===================================================================
 function OwnerPortal({
   customers,
   setCustomers,
@@ -450,27 +585,44 @@ function OwnerPortal({
   onLogout
 }) {
   const [loading, setLoading] = useState(true);
+  const [showManageTypes, setShowManageTypes] = useState(false);
+  const [subscriptionTypes, setSubscriptionTypes] = useState([]);
 
   useEffect(() => {
-    loadCustomers();
-  }, []);
-
-  const loadCustomers = async () => {
-    try {
-      const response = await customersAPI.getAll();
-      setCustomers(response.data);
-    } catch (error) {
-      console.error('Error loading customers:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        const [customersRes, typesRes] = await Promise.all([
+          customersAPI.getAll(),
+          subscriptionTypesAPI.getAll(), // Assumes this API method exists in your services/api.js
+        ]);
+        setCustomers(customersRes.data);
+        setSubscriptionTypes(typesRes.data);
+      } catch (error) {
+        console.error('Error loading owner data:', error);
+        alert('Failed to load data. Please make sure the backend is running.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, [setCustomers]);
 
   const handleAddCustomer = async (customerData) => {
     const response = await customersAPI.create(customerData);
     setCustomers([...customers, response.data]);
     setShowAddCustomer(false);
     alert('Customer added successfully!');
+  };
+
+  const handleAddSubscriptionType = async (typeData) => {
+    const response = await subscriptionTypesAPI.create(typeData); // Assumes this API method exists
+    setSubscriptionTypes([...subscriptionTypes, response.data]);
+  };
+
+  const handleDeleteSubscriptionType = async (typeId) => {
+    await subscriptionTypesAPI.delete(typeId); // Assumes this API method exists
+    setSubscriptionTypes(subscriptionTypes.filter((t) => t.id !== typeId));
   };
 
   const filteredCustomers = customers.filter(c => 
@@ -484,7 +636,6 @@ function OwnerPortal({
       <CustomerDetailView
         customer={selectedCustomer}
         onBack={() => setSelectedCustomer(null)}
-        onUpdate={() => loadCustomers()}
       />
     );
   }
@@ -517,13 +668,21 @@ function OwnerPortal({
               <h2 className="text-2xl font-bold text-gray-800 mb-2">Customer Management</h2>
               <p className="text-gray-600">Manage subscriptions and track visits</p>
             </div>
-            <button
-              onClick={() => setShowAddCustomer(true)}
-              className="flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium"
-            >
-              <Plus className="w-5 h-5" />
-              Add Customer
-            </button>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                onClick={() => setShowManageTypes(true)}
+                className="flex items-center justify-center gap-2 px-6 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-800 transition-colors font-medium"
+              >
+                Manage Packages
+              </button>
+              <button
+                onClick={() => setShowAddCustomer(true)}
+                className="flex items-center justify-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium"
+              >
+                <Plus className="w-5 h-5" />
+                Add Customer
+              </button>
+            </div>
           </div>
 
           <div className="relative mt-6">
@@ -576,29 +735,53 @@ function OwnerPortal({
           onSubmit={handleAddCustomer}
         />
       )}
+      
+      {showManageTypes && (
+        <ManageSubscriptionTypesModal
+          onClose={() => setShowManageTypes(false)}
+          subscriptionTypes={subscriptionTypes}
+          onAdd={handleAddSubscriptionType}
+          onDelete={handleDeleteSubscriptionType}
+        />
+      )}
     </div>
   );
 }
+// ===================================================================
+// END: MODIFIED OWNER PORTAL
+// ===================================================================
 
-function CustomerDetailView({ customer, onBack, onUpdate }) {
+
+// ===================================================================
+// START: MODIFIED CUSTOMER DETAIL VIEW
+// ===================================================================
+function CustomerDetailView({ customer, onBack }) {
   const [subscriptions, setSubscriptions] = useState([]);
+  const [subscriptionTypes, setSubscriptionTypes] = useState([]);
   const [showAddSubscription, setShowAddSubscription] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadSubscriptions();
-  }, [customer.id]);
-
-  const loadSubscriptions = async () => {
+  const loadData = async () => {
+    // This function will be used to reload data after changes
+    setLoading(true);
     try {
-      const response = await subscriptionsAPI.getByCustomer(customer.id);
-      setSubscriptions(response.data);
+      const [subsRes, typesRes] = await Promise.all([
+        subscriptionsAPI.getByCustomer(customer.id),
+        subscriptionTypesAPI.getAll(),
+      ]);
+      setSubscriptions(subsRes.data);
+      setSubscriptionTypes(typesRes.data);
     } catch (error) {
-      console.error('Error loading subscriptions:', error);
+      console.error('Error loading customer detail data:', error);
+      alert('Error loading customer details.');
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadData();
+  }, [customer.id]);
 
   const handleAddSubscription = async (subscriptionType) => {
     try {
@@ -608,7 +791,7 @@ function CustomerDetailView({ customer, onBack, onUpdate }) {
         totalVisits: subscriptionType.visits,
       });
       
-      await loadSubscriptions();
+      await loadData(); // Reload all data to show the new subscription
       setShowAddSubscription(false);
       alert('Subscription added successfully!');
     } catch (error) {
@@ -619,10 +802,10 @@ function CustomerDetailView({ customer, onBack, onUpdate }) {
   const handleRedeemVisit = async (subscriptionId) => {
     try {
       await subscriptionsAPI.redeemVisit(subscriptionId);
-      await loadSubscriptions();
+      await loadData(); // Reload all data to update visit count
       alert('Visit redeemed successfully!');
     } catch (error) {
-      alert('Error redeeming visit: ' + error.message);
+      alert('Error redeeming visit: ' + error.response?.data?.message || error.message);
     }
   };
 
@@ -645,7 +828,7 @@ function CustomerDetailView({ customer, onBack, onUpdate }) {
 
       <div className="max-w-7xl mx-auto p-4">
         <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
-          <div className="flex items-start justify-between mb-4">
+          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
             <div className="flex items-center gap-4">
               <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center">
                 <User className="w-8 h-8 text-purple-600" />
@@ -658,7 +841,7 @@ function CustomerDetailView({ customer, onBack, onUpdate }) {
             </div>
             <button
               onClick={() => setShowAddSubscription(true)}
-              className="flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium"
+              className="flex items-center justify-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium w-full md:w-auto"
             >
               <Plus className="w-5 h-5" />
               Add Subscription
@@ -683,10 +866,10 @@ function CustomerDetailView({ customer, onBack, onUpdate }) {
               
               return (
                 <div key={sub.id} className="bg-white rounded-xl shadow p-6">
-                  <div className="flex items-start justify-between mb-4">
+                  <div className="flex flex-col md:flex-row md:items-start md:justify-between mb-4 gap-4">
                     <div className="flex-1">
                       <h4 className="text-lg font-semibold text-gray-800 mb-2">{sub.name}</h4>
-                      <div className="flex items-center gap-4 text-sm text-gray-600">
+                      <div className="flex items-center gap-4 text-sm text-gray-600 flex-wrap">
                         <span>Used: <strong>{sub.usedVisits}</strong></span>
                         <span>Remaining: <strong className="text-purple-600">{remaining}</strong></span>
                         <span>Total: <strong>{sub.totalVisits}</strong></span>
@@ -695,7 +878,7 @@ function CustomerDetailView({ customer, onBack, onUpdate }) {
                     <button
                       onClick={() => handleRedeemVisit(sub.id)}
                       disabled={remaining === 0}
-                      className={`px-6 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
+                      className={`px-6 py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 w-full md:w-auto ${
                         remaining === 0
                           ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                           : 'bg-purple-600 text-white hover:bg-purple-700'
@@ -736,11 +919,16 @@ function CustomerDetailView({ customer, onBack, onUpdate }) {
         <AddSubscriptionModal
           onClose={() => setShowAddSubscription(false)}
           onSubmit={handleAddSubscription}
+          subscriptionTypes={subscriptionTypes}
         />
       )}
     </div>
   );
 }
+// ===================================================================
+// END: MODIFIED CUSTOMER DETAIL VIEW
+// ===================================================================
+
 
 export default function SalonApp() {
   const [currentUser, setCurrentUser] = useState(null);

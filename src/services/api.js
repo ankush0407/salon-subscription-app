@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+const API_URL = process.env.REACT_APP_API_URL || 'https://salon-backend-5jn9.onrender.com/api';
 
 const api = axios.create({
   baseURL: API_URL,
@@ -9,7 +9,6 @@ const api = axios.create({
   },
 });
 
-// Add token to requests
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
@@ -23,7 +22,6 @@ api.interceptors.request.use(
   }
 );
 
-// Auth API
 export const authAPI = {
   login: (email, password, role) => 
     api.post('/auth/login', { email, password, role }),
@@ -31,18 +29,22 @@ export const authAPI = {
     api.post('/auth/register', { email, password, role }),
 };
 
-// Customers API
 export const customersAPI = {
   getAll: () => api.get('/customers'),
   create: (customerData) => api.post('/customers', customerData),
   getById: (id) => api.get(`/customers/${id}`),
 };
 
-// Subscriptions API
 export const subscriptionsAPI = {
   getByCustomer: (customerId) => api.get(`/subscriptions/customer/${customerId}`),
   create: (subscriptionData) => api.post('/subscriptions', subscriptionData),
   redeemVisit: (subscriptionId) => api.post(`/subscriptions/${subscriptionId}/redeem`),
+};
+
+export const subscriptionTypesAPI = {
+  getAll: () => api.get('/subscription-types'),
+  create: (typeData) => api.post('/subscription-types', typeData),
+  delete: (typeId) => api.delete(`/subscription-types/${typeId}`),
 };
 
 export default api;
