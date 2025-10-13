@@ -1,40 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Calendar, User, Package, ChevronRight, Search, Plus, Check, X } from 'lucide-react';
-
-const INITIAL_DATA = {
-  customers: [
-    {
-      id: 1,
-      name: 'Alex Johnson',
-      email: 'alex@email.com',
-      phone: '(555) 123-4567',
-      subscriptions: [
-        {
-          id: 1,
-          name: '6-Visit Haircut Package',
-          totalVisits: 6,
-          usedVisits: 2,
-          visitDates: ['2025-09-15', '2025-10-01']
-        }
-      ]
-    },
-    {
-      id: 2,
-      name: 'Maria Garcia',
-      email: 'maria@email.com',
-      phone: '(555) 234-5678',
-      subscriptions: [
-        {
-          id: 2,
-          name: '10-Visit Manicure Package',
-          totalVisits: 10,
-          usedVisits: 5,
-          visitDates: ['2025-08-10', '2025-08-24', '2025-09-07', '2025-09-21', '2025-10-05']
-        }
-      ]
-    }
-  ]
-};
+import { authAPI, customersAPI, subscriptionsAPI } from './services/api';
 
 const SUBSCRIPTION_TYPES = [
   { id: 1, name: '6-Visit Haircut Package', visits: 6 },
@@ -47,14 +13,23 @@ const SUBSCRIPTION_TYPES = [
 
 function AddCustomerModal({ onClose, onSubmit }) {
   const [formData, setFormData] = useState({ name: '', email: '', phone: '' });
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!formData.name || !formData.email || !formData.phone) {
       alert('Please fill in all fields');
       return;
     }
-    onSubmit(formData);
-    setFormData({ name: '', email: '', phone: '' });
+    
+    setLoading(true);
+    try {
+      await onSubmit(formData);
+      setFormData({ name: '', email: '', phone: '' });
+    } catch (error) {
+      alert('Error adding customer: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -103,15 +78,17 @@ function AddCustomerModal({ onClose, onSubmit }) {
               type="button"
               onClick={onClose}
               className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              disabled={loading}
             >
               Cancel
             </button>
             <button
               type="button"
               onClick={handleSubmit}
-              className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+              disabled={loading}
+              className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:bg-gray-300"
             >
-              Add Customer
+              {loading ? 'Adding...' : 'Add Customer'}
             </button>
           </div>
         </div>
@@ -122,10 +99,18 @@ function AddCustomerModal({ onClose, onSubmit }) {
 
 function AddSubscriptionModal({ onClose, onSubmit }) {
   const [selectedType, setSelectedType] = useState(null);
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = () => {
-    if (selectedType) {
-      onSubmit(selectedType);
+  const handleSubmit = async () => {
+    if (!selectedType) return;
+    
+    setLoading(true);
+    try {
+      await onSubmit(selectedType);
+    } catch (error) {
+      alert('Error adding subscription: ' + error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -168,6 +153,7 @@ function AddSubscriptionModal({ onClose, onSubmit }) {
           <button
             type="button"
             onClick={onClose}
+            disabled={loading}
             className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
           >
             Cancel
@@ -175,14 +161,14 @@ function AddSubscriptionModal({ onClose, onSubmit }) {
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={!selectedType}
+            disabled={!selectedType || loading}
             className={`flex-1 px-4 py-2 rounded-lg transition-colors ${
-              selectedType
+              selectedType && !loading
                 ? 'bg-purple-600 text-white hover:bg-purple-700'
                 : 'bg-gray-100 text-gray-400 cursor-not-allowed'
             }`}
           >
-            Add Subscription
+            {loading ? 'Adding...' : 'Add Subscription'}
           </button>
         </div>
       </div>
@@ -190,36 +176,27 @@ function AddSubscriptionModal({ onClose, onSubmit }) {
   );
 }
 
-function LoginScreen({ onLogin, customers }) {
+function LoginScreen({ onLogin }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('CUSTOMER');
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = () => {
-    if (role === 'OWNER') {
-      if (password === 'salon123') {
-        onLogin('OWNER', 'owner@salon.com');
-        return;
-      } else {
-        alert('Incorrect password for Owner. Use: salon123');
-        return;
-      }
-    }
-    
-    if (role === 'CUSTOMER') {
-      const customer = customers.find(c => c.email === email);
-      if (customer) {
-        if (password === 'customer123') {
-          onLogin('CUSTOMER', email);
-          return;
-        } else {
-          alert('Incorrect password for Customer. Use: customer123');
-          return;
-        }
-      } else {
-        alert('Customer not found. Use: alex@email.com or maria@email.com');
-        return;
-      }
+  const handleSubmit = async () => {
+    setLoading(true);
+    try {
+      const response = await authAPI.login(email, password, role);
+      const { token, user } = response.data;
+      
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(user));
+      
+      onLogin(user.role, user);
+    } catch (error) {
+      const message = error.response?.data?.message || 'Login failed';
+      alert(message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -285,9 +262,10 @@ function LoginScreen({ onLogin, customers }) {
           <button
             type="button"
             onClick={handleSubmit}
-            className="w-full bg-purple-600 text-white py-3 rounded-lg font-medium hover:bg-purple-700 transition-colors"
+            disabled={loading}
+            className="w-full bg-purple-600 text-white py-3 rounded-lg font-medium hover:bg-purple-700 transition-colors disabled:bg-gray-300"
           >
-            Sign In
+            {loading ? 'Signing In...' : 'Sign In'}
           </button>
 
           <div className="text-center mt-4">
@@ -299,38 +277,38 @@ function LoginScreen({ onLogin, customers }) {
 
         <div className="mt-6 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-purple-200">
           <p className="text-sm font-semibold text-gray-800 mb-3">🔑 Demo Credentials</p>
-          {role === 'OWNER' ? (
-            <div className="space-y-2">
-              <div className="bg-white rounded p-2 border border-purple-100">
-                <p className="text-xs text-gray-600">Email:</p>
-                <p className="text-sm font-mono text-purple-700">owner@salon.com</p>
-              </div>
-              <div className="bg-white rounded p-2 border border-purple-100">
-                <p className="text-xs text-gray-600">Password:</p>
-                <p className="text-sm font-mono text-purple-700">salon123</p>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <div className="bg-white rounded p-2 border border-purple-100">
-                <p className="text-xs text-gray-600">Email (choose one):</p>
-                <p className="text-sm font-mono text-purple-700">alex@email.com</p>
-                <p className="text-sm font-mono text-purple-700">maria@email.com</p>
-              </div>
-              <div className="bg-white rounded p-2 border border-purple-100">
-                <p className="text-xs text-gray-600">Password:</p>
-                <p className="text-sm font-mono text-purple-700">customer123</p>
-              </div>
-            </div>
-          )}
+          <p className="text-xs text-gray-600 mb-2">You need to create users in the backend first.</p>
+          <p className="text-xs text-gray-600">Run the backend server and use the register endpoint.</p>
         </div>
       </div>
     </div>
   );
 }
 
-function CustomerPortal({ customer, onLogout, selectedSubscription, setSelectedSubscription }) {
+function CustomerPortal({ customer, onLogout, subscriptions, setSubscriptions }) {
+  const [selectedSubscription, setSelectedSubscription] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadSubscriptions();
+  }, []);
+
+  const loadSubscriptions = async () => {
+    try {
+      const response = await subscriptionsAPI.getByCustomer(customer.id);
+      setSubscriptions(response.data);
+    } catch (error) {
+      console.error('Error loading subscriptions:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (selectedSubscription) {
+    const visitDates = selectedSubscription.visitDates 
+      ? selectedSubscription.visitDates.split(',') 
+      : [];
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50">
         <div className="max-w-4xl mx-auto p-4">
@@ -351,17 +329,17 @@ function CustomerPortal({ customer, onLogout, selectedSubscription, setSelectedS
               <div className="w-full bg-gray-200 rounded-full h-3">
                 <div
                   className="bg-purple-600 h-3 rounded-full transition-all"
-                  style={{ width: `${(selectedSubscription.usedVisits / selectedSubscription.totalVisits) * 100}%` }}
+                  style={{ width: `${(parseInt(selectedSubscription.usedVisits) / parseInt(selectedSubscription.totalVisits)) * 100}%` }}
                 />
               </div>
             </div>
 
             <h3 className="text-lg font-semibold text-gray-800 mb-4">Visit History</h3>
-            {selectedSubscription.visitDates.length === 0 ? (
+            {visitDates.length === 0 ? (
               <p className="text-gray-500 text-center py-8">No visits yet</p>
             ) : (
               <div className="space-y-2">
-                {selectedSubscription.visitDates.map((date, idx) => (
+                {visitDates.map((date, idx) => (
                   <div key={idx} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
                     <Calendar className="w-5 h-5 text-purple-600" />
                     <span className="text-gray-700">{new Date(date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
@@ -373,6 +351,10 @@ function CustomerPortal({ customer, onLogout, selectedSubscription, setSelectedS
         </div>
       </div>
     );
+  }
+
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   }
 
   return (
@@ -398,7 +380,7 @@ function CustomerPortal({ customer, onLogout, selectedSubscription, setSelectedS
           <p className="text-gray-600">Track your subscription packages and visit history</p>
         </div>
 
-        {customer.subscriptions.length === 0 ? (
+        {subscriptions.length === 0 ? (
           <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
             <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <p className="text-gray-500 text-lg">No active subscriptions</p>
@@ -406,9 +388,9 @@ function CustomerPortal({ customer, onLogout, selectedSubscription, setSelectedS
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
-            {customer.subscriptions.map((sub) => {
-              const remaining = sub.totalVisits - sub.usedVisits;
-              const progress = (sub.usedVisits / sub.totalVisits) * 100;
+            {subscriptions.map((sub) => {
+              const remaining = parseInt(sub.totalVisits) - parseInt(sub.usedVisits);
+              const progress = (parseInt(sub.usedVisits) / parseInt(sub.totalVisits)) * 100;
               
               return (
                 <div key={sub.id} className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-shadow">
@@ -456,153 +438,59 @@ function CustomerPortal({ customer, onLogout, selectedSubscription, setSelectedS
   );
 }
 
-function CustomerDetailView({
-  customer,
-  onBack,
-  onAddSubscription,
-  onRedeemVisit,
-  showAddSubscription,
-  setShowAddSubscription,
-  onAddSubscriptionSubmit
-}) {
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <button
-            onClick={onBack}
-            className="text-purple-600 hover:text-purple-700 font-medium flex items-center gap-2"
-          >
-            ← Back to Customers
-          </button>
-        </div>
-      </nav>
-
-      <div className="max-w-7xl mx-auto p-4">
-        <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
-          <div className="flex items-start justify-between mb-4">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center">
-                <User className="w-8 h-8 text-purple-600" />
-              </div>
-              <div>
-                <h2 className="text-2xl font-bold text-gray-800">{customer.name}</h2>
-                <p className="text-gray-600">{customer.email}</p>
-                <p className="text-gray-500">{customer.phone}</p>
-              </div>
-            </div>
-            <button
-              onClick={onAddSubscription}
-              className="flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium"
-            >
-              <Plus className="w-5 h-5" />
-              Add Subscription
-            </button>
-          </div>
-        </div>
-
-        <h3 className="text-xl font-bold text-gray-800 mb-4">Active Subscriptions</h3>
-
-        {customer.subscriptions.length === 0 ? (
-          <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
-            <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500 text-lg">No subscriptions yet</p>
-            <p className="text-gray-400 text-sm mt-2">Add a subscription to get started</p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {customer.subscriptions.map((sub) => {
-              const remaining = sub.totalVisits - sub.usedVisits;
-              const progress = (sub.usedVisits / sub.totalVisits) * 100;
-              
-              return (
-                <div key={sub.id} className="bg-white rounded-xl shadow p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <h4 className="text-lg font-semibold text-gray-800 mb-2">{sub.name}</h4>
-                      <div className="flex items-center gap-4 text-sm text-gray-600">
-                        <span>Used: <strong>{sub.usedVisits}</strong></span>
-                        <span>Remaining: <strong className="text-purple-600">{remaining}</strong></span>
-                        <span>Total: <strong>{sub.totalVisits}</strong></span>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => onRedeemVisit(customer.id, sub.id)}
-                      disabled={remaining === 0}
-                      className={`px-6 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
-                        remaining === 0
-                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                          : 'bg-purple-600 text-white hover:bg-purple-700'
-                      }`}
-                    >
-                      <Check className="w-5 h-5" />
-                      Redeem Visit
-                    </button>
-                  </div>
-
-                  <div className="w-full bg-gray-200 rounded-full h-3 mb-4">
-                    <div
-                      className="bg-purple-600 h-3 rounded-full transition-all"
-                      style={{ width: `${progress}%` }}
-                    />
-                  </div>
-
-                  {sub.visitDates.length > 0 && (
-                    <div>
-                      <p className="text-sm font-medium text-gray-700 mb-2">Recent Visits:</p>
-                      <div className="flex flex-wrap gap-2">
-                        {sub.visitDates.slice(-5).reverse().map((date, idx) => (
-                          <span key={idx} className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-xs">
-                            {new Date(date).toLocaleDateString()}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {showAddSubscription && (
-        <AddSubscriptionModal
-          onClose={() => setShowAddSubscription(false)}
-          onSubmit={(subType) => onAddSubscriptionSubmit(customer.id, subType)}
-        />
-      )}
-    </div>
-  );
-}
-
 function OwnerPortal({
   customers,
+  setCustomers,
   selectedCustomer,
   setSelectedCustomer,
   searchTerm,
   setSearchTerm,
   showAddCustomer,
   setShowAddCustomer,
-  showAddSubscription,
-  setShowAddSubscription,
-  onAddCustomer,
-  onAddSubscription,
-  onRedeemVisit,
   onLogout
 }) {
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadCustomers();
+  }, []);
+
+  const loadCustomers = async () => {
+    try {
+      const response = await customersAPI.getAll();
+      setCustomers(response.data);
+    } catch (error) {
+      console.error('Error loading customers:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddCustomer = async (customerData) => {
+    const response = await customersAPI.create(customerData);
+    setCustomers([...customers, response.data]);
+    setShowAddCustomer(false);
+    alert('Customer added successfully!');
+  };
+
+  const filteredCustomers = customers.filter(c => 
+    c.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    c.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    c.phone?.includes(searchTerm)
+  );
+
   if (selectedCustomer) {
     return (
       <CustomerDetailView
         customer={selectedCustomer}
         onBack={() => setSelectedCustomer(null)}
-        onAddSubscription={() => setShowAddSubscription(true)}
-        onRedeemVisit={onRedeemVisit}
-        showAddSubscription={showAddSubscription}
-        setShowAddSubscription={setShowAddSubscription}
-        onAddSubscriptionSubmit={onAddSubscription}
+        onUpdate={() => loadCustomers()}
       />
     );
+  }
+
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   }
 
   return (
@@ -650,14 +538,14 @@ function OwnerPortal({
           </div>
         </div>
 
-        {customers.length === 0 ? (
+        {filteredCustomers.length === 0 ? (
           <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
             <User className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <p className="text-gray-500 text-lg">No customers found</p>
           </div>
         ) : (
           <div className="grid gap-4">
-            {customers.map((customer) => (
+            {filteredCustomers.map((customer) => (
               <div
                 key={customer.id}
                 onClick={() => setSelectedCustomer(customer)}
@@ -674,13 +562,7 @@ function OwnerPortal({
                       <p className="text-sm text-gray-500">{customer.phone}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <div className="text-right">
-                      <p className="text-2xl font-bold text-purple-600">{customer.subscriptions.length}</p>
-                      <p className="text-sm text-gray-600">subscriptions</p>
-                    </div>
-                    <ChevronRight className="w-6 h-6 text-gray-400" />
-                  </div>
+                  <ChevronRight className="w-6 h-6 text-gray-400" />
                 </div>
               </div>
             ))}
@@ -691,7 +573,169 @@ function OwnerPortal({
       {showAddCustomer && (
         <AddCustomerModal
           onClose={() => setShowAddCustomer(false)}
-          onSubmit={onAddCustomer}
+          onSubmit={handleAddCustomer}
+        />
+      )}
+    </div>
+  );
+}
+
+function CustomerDetailView({ customer, onBack, onUpdate }) {
+  const [subscriptions, setSubscriptions] = useState([]);
+  const [showAddSubscription, setShowAddSubscription] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadSubscriptions();
+  }, [customer.id]);
+
+  const loadSubscriptions = async () => {
+    try {
+      const response = await subscriptionsAPI.getByCustomer(customer.id);
+      setSubscriptions(response.data);
+    } catch (error) {
+      console.error('Error loading subscriptions:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddSubscription = async (subscriptionType) => {
+    try {
+      await subscriptionsAPI.create({
+        customerId: customer.id,
+        name: subscriptionType.name,
+        totalVisits: subscriptionType.visits,
+      });
+      
+      await loadSubscriptions();
+      setShowAddSubscription(false);
+      alert('Subscription added successfully!');
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  const handleRedeemVisit = async (subscriptionId) => {
+    try {
+      await subscriptionsAPI.redeemVisit(subscriptionId);
+      await loadSubscriptions();
+      alert('Visit redeemed successfully!');
+    } catch (error) {
+      alert('Error redeeming visit: ' + error.message);
+    }
+  };
+
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <nav className="bg-white shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 py-4">
+          <button
+            onClick={onBack}
+            className="text-purple-600 hover:text-purple-700 font-medium flex items-center gap-2"
+          >
+            ← Back to Customers
+          </button>
+        </div>
+      </nav>
+
+      <div className="max-w-7xl mx-auto p-4">
+        <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
+          <div className="flex items-start justify-between mb-4">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center">
+                <User className="w-8 h-8 text-purple-600" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-gray-800">{customer.name}</h2>
+                <p className="text-gray-600">{customer.email}</p>
+                <p className="text-gray-500">{customer.phone}</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowAddSubscription(true)}
+              className="flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium"
+            >
+              <Plus className="w-5 h-5" />
+              Add Subscription
+            </button>
+          </div>
+        </div>
+
+        <h3 className="text-xl font-bold text-gray-800 mb-4">Active Subscriptions</h3>
+
+        {subscriptions.length === 0 ? (
+          <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
+            <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <p className="text-gray-500 text-lg">No subscriptions yet</p>
+            <p className="text-gray-400 text-sm mt-2">Add a subscription to get started</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {subscriptions.map((sub) => {
+              const remaining = parseInt(sub.totalVisits) - parseInt(sub.usedVisits);
+              const progress = (parseInt(sub.usedVisits) / parseInt(sub.totalVisits)) * 100;
+              const visitDates = sub.visitDates ? sub.visitDates.split(',') : [];
+              
+              return (
+                <div key={sub.id} className="bg-white rounded-xl shadow p-6">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex-1">
+                      <h4 className="text-lg font-semibold text-gray-800 mb-2">{sub.name}</h4>
+                      <div className="flex items-center gap-4 text-sm text-gray-600">
+                        <span>Used: <strong>{sub.usedVisits}</strong></span>
+                        <span>Remaining: <strong className="text-purple-600">{remaining}</strong></span>
+                        <span>Total: <strong>{sub.totalVisits}</strong></span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleRedeemVisit(sub.id)}
+                      disabled={remaining === 0}
+                      className={`px-6 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
+                        remaining === 0
+                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                          : 'bg-purple-600 text-white hover:bg-purple-700'
+                      }`}
+                    >
+                      <Check className="w-5 h-5" />
+                      Redeem Visit
+                    </button>
+                  </div>
+
+                  <div className="w-full bg-gray-200 rounded-full h-3 mb-4">
+                    <div
+                      className="bg-purple-600 h-3 rounded-full transition-all"
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
+
+                  {visitDates.length > 0 && (
+                    <div>
+                      <p className="text-sm font-medium text-gray-700 mb-2">Recent Visits:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {visitDates.slice(-5).reverse().map((date, idx) => (
+                          <span key={idx} className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-xs">
+                            {new Date(date).toLocaleDateString()}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {showAddSubscription && (
+        <AddSubscriptionModal
+          onClose={() => setShowAddSubscription(false)}
+          onSubmit={handleAddSubscription}
         />
       )}
     </div>
@@ -701,106 +745,39 @@ function OwnerPortal({
 export default function SalonApp() {
   const [currentUser, setCurrentUser] = useState(null);
   const [userRole, setUserRole] = useState(null);
-  const [customers, setCustomers] = useState(INITIAL_DATA.customers);
+  const [customers, setCustomers] = useState([]);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddCustomer, setShowAddCustomer] = useState(false);
-  const [showAddSubscription, setShowAddSubscription] = useState(false);
-  const [selectedSubscription, setSelectedSubscription] = useState(null);
+  const [subscriptions, setSubscriptions] = useState([]);
 
-  const handleLogin = (role, email) => {
-    setUserRole(role);
-    if (role === 'CUSTOMER') {
-      const customer = customers.find(c => c.email === email);
-      setCurrentUser(customer);
-    } else {
-      setCurrentUser({ email: 'owner@salon.com', name: 'Salon Owner' });
+  useEffect(() => {
+    // Check if user is already logged in
+    const token = localStorage.getItem('token');
+    const user = localStorage.getItem('user');
+    
+    if (token && user) {
+      const parsedUser = JSON.parse(user);
+      setCurrentUser(parsedUser);
+      setUserRole(parsedUser.role);
     }
+  }, []);
+
+  const handleLogin = (role, user) => {
+    setUserRole(role);
+    setCurrentUser(user);
   };
 
   const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
     setCurrentUser(null);
     setUserRole(null);
     setSelectedCustomer(null);
   };
 
-  const handleAddCustomer = (customerData) => {
-    const newCustomer = {
-      id: Date.now(),
-      ...customerData,
-      subscriptions: []
-    };
-    const updatedCustomers = [...customers, newCustomer];
-    setCustomers(updatedCustomers);
-    setShowAddCustomer(false);
-    alert(`Customer ${customerData.name} added successfully!`);
-  };
-
-  const handleAddSubscription = (customerId, subscriptionType) => {
-    const updatedCustomers = customers.map(customer => {
-      if (customer.id === customerId) {
-        const newSub = {
-          id: Date.now(),
-          name: subscriptionType.name,
-          totalVisits: subscriptionType.visits,
-          usedVisits: 0,
-          visitDates: []
-        };
-        return {
-          ...customer,
-          subscriptions: [...customer.subscriptions, newSub]
-        };
-      }
-      return customer;
-    });
-    setCustomers(updatedCustomers);
-    setShowAddSubscription(false);
-    
-    if (selectedCustomer && selectedCustomer.id === customerId) {
-      const updated = updatedCustomers.find(c => c.id === customerId);
-      setSelectedCustomer(updated);
-    }
-    alert('Subscription added successfully!');
-  };
-
-  const handleRedeemVisit = (customerId, subscriptionId) => {
-    const today = new Date().toISOString().split('T')[0];
-    const updatedCustomers = customers.map(customer => {
-      if (customer.id === customerId) {
-        return {
-          ...customer,
-          subscriptions: customer.subscriptions.map(sub => {
-            if (sub.id === subscriptionId && sub.usedVisits < sub.totalVisits) {
-              return {
-                ...sub,
-                usedVisits: sub.usedVisits + 1,
-                visitDates: [...sub.visitDates, today]
-              };
-            }
-            return sub;
-          })
-        };
-      }
-      return customer;
-    });
-    
-    setCustomers(updatedCustomers);
-    
-    if (selectedCustomer && selectedCustomer.id === customerId) {
-      const updated = updatedCustomers.find(c => c.id === customerId);
-      setSelectedCustomer(updated);
-    }
-    alert('Visit redeemed successfully!');
-  };
-
-  const filteredCustomers = customers.filter(c => 
-    c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.phone.includes(searchTerm)
-  );
-
   if (!currentUser) {
-    return <LoginScreen onLogin={handleLogin} customers={customers} />;
+    return <LoginScreen onLogin={handleLogin} />;
   }
 
   if (userRole === 'CUSTOMER') {
@@ -808,26 +785,22 @@ export default function SalonApp() {
       <CustomerPortal 
         customer={currentUser} 
         onLogout={handleLogout}
-        selectedSubscription={selectedSubscription}
-        setSelectedSubscription={setSelectedSubscription}
+        subscriptions={subscriptions}
+        setSubscriptions={setSubscriptions}
       />
     );
   }
 
   return (
     <OwnerPortal
-      customers={filteredCustomers}
+      customers={customers}
+      setCustomers={setCustomers}
       selectedCustomer={selectedCustomer}
       setSelectedCustomer={setSelectedCustomer}
       searchTerm={searchTerm}
       setSearchTerm={setSearchTerm}
       showAddCustomer={showAddCustomer}
       setShowAddCustomer={setShowAddCustomer}
-      showAddSubscription={showAddSubscription}
-      setShowAddSubscription={setShowAddSubscription}
-      onAddCustomer={handleAddCustomer}
-      onAddSubscription={handleAddSubscription}
-      onRedeemVisit={handleRedeemVisit}
       onLogout={handleLogout}
     />
   );
