@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState,useCallback, useEffect } from 'react';
 import { Calendar, User, Package, ChevronRight, Search, Plus, Check, X } from 'lucide-react';
 import { authAPI, customersAPI, subscriptionsAPI, subscriptionTypesAPI } from './services/api';
 
@@ -468,7 +468,7 @@ function LoginScreen({ onLogin }) {
           </button>
 
           <div className="text-center mt-4">
-            <a href="#" className="text-sm text-purple-600 hover:text-purple-700">
+            <a href="/forgot-password" className="text-sm text-purple-600 hover:text-purple-700">
               Forgot password?
             </a>
           </div>
@@ -492,16 +492,23 @@ function CustomerPortal({ customer, onLogout, subscriptions, setSubscriptions })
     loadSubscriptions();
   }, []);
 
-  const loadSubscriptions = async () => {
-    try {
-      const response = await subscriptionsAPI.getByCustomer(customer.id);
-      setSubscriptions(response.data);
-    } catch (error) {
-      console.error('Error loading subscriptions:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+// --- FIX 1: Wrap loadSubscriptions in useCallback ---
+ const loadSubscriptions = useCallback(async () => {
+try {
+const response = await subscriptionsAPI.getByCustomer(customer.id);
+setSubscriptions(response.data);
+} catch (error) {
+console.error('Error loading subscriptions:', error);
+ } finally {
+ setLoading(false);
+ }
+ // --- FIX 1: Add dependencies to useCallback ---
+ }, [customer.id, setSubscriptions, setLoading]);
+
+ useEffect(() => {
+ loadSubscriptions();
+ // --- FIX 1: Update useEffect dependency ---
+}, [loadSubscriptions]);
 
   if (selectedSubscription) {
     const visitDates = selectedSubscription.visitDates 
@@ -830,26 +837,28 @@ function CustomerDetailView({ customer, onBack }) {
   const [selectedSubscriptionForRedeem, setSelectedSubscriptionForRedeem] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const loadData = async () => {
-    setLoading(true);
-    try {
-      const [subsRes, typesRes] = await Promise.all([
-        subscriptionsAPI.getByCustomer(customer.id),
-        subscriptionTypesAPI.getAll(),
-      ]);
-      setSubscriptions(subsRes.data);
-      setSubscriptionTypes(typesRes.data);
-    } catch (error) {
-      console.error('Error loading customer detail data:', error);
-      alert('Error loading customer details.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const loadData = useCallback(async () => {
+  setLoading(true);
+ try {
+ const [subsRes, typesRes] = await Promise.all([
+ subscriptionsAPI.getByCustomer(customer.id),
+ subscriptionTypesAPI.getAll(),
+ ]);
+ setSubscriptions(subsRes.data);
+ setSubscriptionTypes(typesRes.data);
+ } catch (error) {
+ console.error('Error loading customer detail data:', error);
+ alert('Error loading customer details.');
+ } finally {
+ setLoading(false);
+ }
+ // --- FIX 2: Add dependencies to useCallback ---
+ }, [customer.id, setSubscriptions, setSubscriptionTypes, setLoading]);
 
-  useEffect(() => {
-    loadData();
-  }, [customer.id]);
+ useEffect(() => {
+ loadData();
+ // --- FIX 2: Update useEffect dependency ---
+ }, [loadData]);
 
   const handleAddSubscription = async (subscriptionType) => {
     try {
