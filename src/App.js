@@ -307,7 +307,74 @@ function AddSubscriptionModal({ onClose, onSubmit, subscriptionTypes }) {
     </div>
   );
 }
+function RedeemVisitModal({ onClose, onSubmit, subscriptionName }) {
+  const [note, setNote] = useState('');
+  const [loading, setLoading] = useState(false);
 
+  const handleSubmit = async () => {
+    setLoading(true);
+    try {
+      await onSubmit(note);
+      onClose();
+    } catch (error) {
+      alert('Error redeeming visit: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold text-gray-800">Redeem Visit</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+
+        <div className="mb-6">
+          <p className="text-gray-700 mb-4">
+            Redeeming visit for: <strong>{subscriptionName}</strong>
+          </p>
+          
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Add Note (Optional)
+          </label>
+          <textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="e.g., Client requested shorter length, Used special product..."
+            rows="4"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            This note will be saved with this visit and only visible to salon owners.
+          </p>
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={loading}
+            className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={loading}
+            className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:bg-gray-300"
+          >
+            {loading ? 'Redeeming...' : 'Redeem Visit'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 function LoginScreen({ onLogin }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -759,10 +826,11 @@ function CustomerDetailView({ customer, onBack }) {
   const [subscriptions, setSubscriptions] = useState([]);
   const [subscriptionTypes, setSubscriptionTypes] = useState([]);
   const [showAddSubscription, setShowAddSubscription] = useState(false);
+  const [showRedeemModal, setShowRedeemModal] = useState(false);
+  const [selectedSubscriptionForRedeem, setSelectedSubscriptionForRedeem] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const loadData = async () => {
-    // This function will be used to reload data after changes
     setLoading(true);
     try {
       const [subsRes, typesRes] = await Promise.all([
@@ -791,7 +859,7 @@ function CustomerDetailView({ customer, onBack }) {
         totalVisits: subscriptionType.visits,
       });
       
-      await loadData(); // Reload all data to show the new subscription
+      await loadData();
       setShowAddSubscription(false);
       alert('Subscription added successfully!');
     } catch (error) {
@@ -799,14 +867,36 @@ function CustomerDetailView({ customer, onBack }) {
     }
   };
 
-  const handleRedeemVisit = async (subscriptionId) => {
+  const handleOpenRedeemModal = (subscription) => {
+    setSelectedSubscriptionForRedeem(subscription);
+    setShowRedeemModal(true);
+  };
+
+  const handleRedeemVisit = async (note) => {
     try {
-      await subscriptionsAPI.redeemVisit(subscriptionId);
-      await loadData(); // Reload all data to update visit count
+      await subscriptionsAPI.redeemVisit(selectedSubscriptionForRedeem.id, note);
+      await loadData();
+      setShowRedeemModal(false);
+      setSelectedSubscriptionForRedeem(null);
       alert('Visit redeemed successfully!');
     } catch (error) {
-      alert('Error redeeming visit: ' + error.response?.data?.message || error.message);
+      throw error;
     }
+  };
+
+  // Parse visit notes into array - now matches by order/index
+  const parseVisitNotes = (visitNotesString) => {
+    if (!visitNotesString) return [];
+    
+    return visitNotesString.split('||').filter(n => n).map(noteEntry => {
+      const colonIndex = noteEntry.indexOf(':');
+      if (colonIndex === -1) {
+        return { date: '', note: noteEntry };
+      }
+      const date = noteEntry.substring(0, colonIndex);
+      const note = noteEntry.substring(colonIndex + 1);
+      return { date, note };
+    });
   };
 
   if (loading) {
@@ -863,6 +953,7 @@ function CustomerDetailView({ customer, onBack }) {
               const remaining = parseInt(sub.totalVisits) - parseInt(sub.usedVisits);
               const progress = (parseInt(sub.usedVisits) / parseInt(sub.totalVisits)) * 100;
               const visitDates = sub.visitDates ? sub.visitDates.split(',') : [];
+              const visitNotes = parseVisitNotes(sub.visitNotes);
               
               return (
                 <div key={sub.id} className="bg-white rounded-xl shadow p-6">
@@ -876,7 +967,7 @@ function CustomerDetailView({ customer, onBack }) {
                       </div>
                     </div>
                     <button
-                      onClick={() => handleRedeemVisit(sub.id)}
+                      onClick={() => handleOpenRedeemModal(sub)}
                       disabled={remaining === 0}
                       className={`px-6 py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 w-full md:w-auto ${
                         remaining === 0
@@ -898,13 +989,38 @@ function CustomerDetailView({ customer, onBack }) {
 
                   {visitDates.length > 0 && (
                     <div>
-                      <p className="text-sm font-medium text-gray-700 mb-2">Recent Visits:</p>
-                      <div className="flex flex-wrap gap-2">
-                        {visitDates.slice(-5).reverse().map((date, idx) => (
-                          <span key={idx} className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-xs">
-                            {new Date(date).toLocaleDateString()}
-                          </span>
-                        ))}
+                      <p className="text-sm font-medium text-gray-700 mb-3">Visit History:</p>
+                      <div className="space-y-2">
+                        {visitDates.slice().reverse().map((date, idx) => {
+                          // Calculate the actual index in the original array
+                          const originalIndex = visitDates.length - 1 - idx;
+                          const noteForVisit = visitNotes[originalIndex];
+                          
+                          return (
+                            <div key={idx} className="p-3 bg-gray-50 rounded-lg">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-sm font-medium text-gray-700">
+                                  Visit {originalIndex + 1}
+                                </span>
+                                <span className="text-xs text-gray-500">
+                                  {new Date(date).toLocaleDateString('en-US', { 
+                                    month: 'short', 
+                                    day: 'numeric', 
+                                    year: 'numeric' 
+                                  })}
+                                </span>
+                              </div>
+                              {noteForVisit && noteForVisit.note && (
+                                <div className="mt-2 p-2 bg-blue-50 border-l-2 border-blue-400 rounded">
+                                  <p className="text-xs text-blue-900">
+                                    <span className="font-semibold">Note: </span>
+                                    {noteForVisit.note}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -920,6 +1036,17 @@ function CustomerDetailView({ customer, onBack }) {
           onClose={() => setShowAddSubscription(false)}
           onSubmit={handleAddSubscription}
           subscriptionTypes={subscriptionTypes}
+        />
+      )}
+
+      {showRedeemModal && selectedSubscriptionForRedeem && (
+        <RedeemVisitModal
+          onClose={() => {
+            setShowRedeemModal(false);
+            setSelectedSubscriptionForRedeem(null);
+          }}
+          onSubmit={handleRedeemVisit}
+          subscriptionName={selectedSubscriptionForRedeem.name}
         />
       )}
     </div>

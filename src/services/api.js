@@ -38,7 +38,7 @@ export const customersAPI = {
 export const subscriptionsAPI = {
   getByCustomer: (customerId) => api.get(`/subscriptions/customer/${customerId}`),
   create: (subscriptionData) => api.post('/subscriptions', subscriptionData),
-  redeemVisit: (subscriptionId) => api.post(`/subscriptions/${subscriptionId}/redeem`),
+  redeemVisit: (subscriptionId, note) => api.post(`/subscriptions/${subscriptionId}/redeem`, { note }),
 };
 
 export const subscriptionTypesAPI = {
