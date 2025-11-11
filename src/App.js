@@ -546,7 +546,13 @@ function CustomerPortal({ customer, onLogout, subscriptions, setSubscriptions })
                 {visitDates.map((date, idx) => (
                   <div key={idx} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
                     <Calendar className="w-5 h-5 text-purple-600" />
-                    <span className="text-gray-700">{new Date(date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                    <span className="text-gray-700">{new Date(date + 'T00:00:00').toLocaleDateString('en-US', { 
+    weekday: 'long', 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  })}
+  </span>
                   </div>
                 ))}
               </div>
@@ -1011,11 +1017,11 @@ function CustomerDetailView({ customer, onBack }) {
                                   Visit {originalIndex + 1}
                                 </span>
                                 <span className="text-xs text-gray-500">
-                                  {new Date(date).toLocaleDateString('en-US', { 
-                                    month: 'short', 
-                                    day: 'numeric', 
-                                    year: 'numeric' 
-                                  })}
+                                  {new Date(date + 'T00:00:00').toLocaleDateString('en-US', { 
+                    month: 'short', 
+                    day: 'numeric', 
+                    year: 'numeric' 
+                  })}
                                 </span>
                               </div>
                               {noteForVisit && noteForVisit.note && (
