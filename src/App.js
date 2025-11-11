@@ -546,6 +546,7 @@ function CustomerPortal({ customer, onLogout, subscriptions, setSubscriptions })
                 {visitDates.map((date, idx) => (
                   <div key={idx} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
                     <Calendar className="w-5 h-5 text-purple-600" />
+<<<<<<< HEAD
                     <span className="text-gray-700">{new Date(date).toLocaleDateString('en-US', { 
     weekday: 'long', 
     year: 'numeric', 
@@ -553,6 +554,9 @@ function CustomerPortal({ customer, onLogout, subscriptions, setSubscriptions })
     day: 'numeric' 
   })}
   </span>
+=======
+                    <span className="text-gray-700">{new Date(date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+>>>>>>> parent of da373af (updated the dates to show the local dates in the frontend)
                   </div>
                 ))}
               </div>
@@ -1018,10 +1022,17 @@ function CustomerDetailView({ customer, onBack }) {
                                 </span>
                                 <span className="text-xs text-gray-500">
                                   {new Date(date).toLocaleDateString('en-US', { 
+<<<<<<< HEAD
                     month: 'short', 
                     day: 'numeric', 
                     year: 'numeric' 
                   })}
+=======
+                                    month: 'short', 
+                                    day: 'numeric', 
+                                    year: 'numeric' 
+                                  })}
+>>>>>>> parent of da373af (updated the dates to show the local dates in the frontend)
                                 </span>
                               </div>
                               {noteForVisit && noteForVisit.note && (
