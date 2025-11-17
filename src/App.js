@@ -665,6 +665,7 @@ function OwnerPortal({
   const [loading, setLoading] = useState(true);
   const [showManageTypes, setShowManageTypes] = useState(false);
   const [subscriptionTypes, setSubscriptionTypes] = useState([]);
+  const [sortBy, setSortBy] = useState('name-asc'); // NEW: Added sorting state
 
   useEffect(() => {
     const loadData = async () => {
@@ -672,7 +673,7 @@ function OwnerPortal({
       try {
         const [customersRes, typesRes] = await Promise.all([
           customersAPI.getAll(),
-          subscriptionTypesAPI.getAll(), // Assumes this API method exists in your services/api.js
+          subscriptionTypesAPI.getAll(),
         ]);
         setCustomers(customersRes.data);
         setSubscriptionTypes(typesRes.data);
@@ -694,26 +695,56 @@ function OwnerPortal({
   };
 
   const handleAddSubscriptionType = async (typeData) => {
-    const response = await subscriptionTypesAPI.create(typeData); // Assumes this API method exists
+    const response = await subscriptionTypesAPI.create(typeData);
     setSubscriptionTypes([...subscriptionTypes, response.data]);
   };
 
   const handleDeleteSubscriptionType = async (typeId) => {
-    await subscriptionTypesAPI.delete(typeId); // Assumes this API method exists
+    await subscriptionTypesAPI.delete(typeId);
     setSubscriptionTypes(subscriptionTypes.filter((t) => t.id !== typeId));
   };
 
+  // Filter customers based on search term
   const filteredCustomers = customers.filter(c => 
     c.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     c.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     c.phone?.includes(searchTerm)
   );
 
+  // NEW: Sort customers based on selected sort option
+  const sortedCustomers = [...filteredCustomers].sort((a, b) => {
+    switch (sortBy) {
+      case 'name-asc':
+        return (a.name || '').localeCompare(b.name || '');
+      case 'name-desc':
+        return (b.name || '').localeCompare(a.name || '');
+      case 'email-asc':
+        return (a.email || '').localeCompare(b.email || '');
+      case 'email-desc':
+        return (b.email || '').localeCompare(a.email || '');
+      case 'recent':
+        return (b.createdAt || '').localeCompare(a.createdAt || '');
+      case 'oldest':
+        return (a.createdAt || '').localeCompare(b.createdAt || '');
+      default:
+        return 0;
+    }
+  });
+
   if (selectedCustomer) {
     return (
       <CustomerDetailView
         customer={selectedCustomer}
         onBack={() => setSelectedCustomer(null)}
+        onCustomerUpdated={async () => {
+          // Reload customers list when customer is updated/deleted
+          try {
+            const response = await customersAPI.getAll();
+            setCustomers(response.data);
+          } catch (error) {
+            console.error('Error reloading customers:', error);
+          }
+        }}
       />
     );
   }
@@ -763,26 +794,46 @@ function OwnerPortal({
             </div>
           </div>
 
-          <div className="relative mt-6">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-            <input
-              type="text"
-              placeholder="Search by name, email, or phone..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-            />
+          {/* NEW: Updated layout with search and sort side by side */}
+          <div className="flex flex-col md:flex-row gap-4 mt-6">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input
+                type="text"
+                placeholder="Search by name, email, or phone..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              />
+            </div>
+            
+            {/* NEW: Sort dropdown */}
+            <div className="md:w-64">
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"
+              >
+                <option value="name-asc">Name (A-Z)</option>
+                <option value="name-desc">Name (Z-A)</option>
+                <option value="email-asc">Email (A-Z)</option>
+                <option value="email-desc">Email (Z-A)</option>
+                <option value="recent">Recently Added</option>
+                <option value="oldest">Oldest First</option>
+              </select>
+            </div>
           </div>
         </div>
 
-        {filteredCustomers.length === 0 ? (
+        {/* UPDATED: Now using sortedCustomers instead of filteredCustomers */}
+        {sortedCustomers.length === 0 ? (
           <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
             <User className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <p className="text-gray-500 text-lg">No customers found</p>
           </div>
         ) : (
           <div className="grid gap-4">
-            {filteredCustomers.map((customer) => (
+            {sortedCustomers.map((customer) => (
               <div
                 key={customer.id}
                 onClick={() => setSelectedCustomer(customer)}
